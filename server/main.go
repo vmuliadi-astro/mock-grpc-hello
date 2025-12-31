@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"google.golang.org/grpc/metadata"
 	"log"
 	"net"
 	"os"
@@ -22,11 +23,14 @@ type greeterServer struct {
 	hostname string
 }
 
-func (s *greeterServer) SayHello(
-	ctx context.Context,
-	req *HelloRequest,
-) (*HelloReply, error) {
+func loggingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		fmt.Printf("Method: %s | Headers: %v\n", info.FullMethod, md)
+	}
+	return handler(ctx, req)
+}
 
+func (s *greeterServer) SayHello(ctx context.Context, req *HelloRequest) (*HelloReply, error) {
 	sleep := time.Duration(req.SleepSec) * time.Second
 	if sleep > 0 {
 		select {
@@ -52,7 +56,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	s := grpc.NewServer()
+	s := grpc.NewServer(grpc.UnaryInterceptor(loggingInterceptor))
 	RegisterGreeterServer(s, &greeterServer{hostname: hostname})
 
 	hs := health.NewServer()
