@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -41,7 +42,9 @@ func (s *greeterServer) SayHello(ctx context.Context, req *HelloRequest) (*Hello
 	}
 
 	return &HelloReply{
-		Message: fmt.Sprintf("Hello %s from %s", req.Name, s.hostname),
+		Message:   fmt.Sprintf("Hello %s", req.Name),
+		Hostname:  fmt.Sprintf(s.hostname),
+		Timestamp: time.Now().UnixNano(),
 	}, nil
 }
 
@@ -56,7 +59,19 @@ func main() {
 		log.Fatal(err)
 	}
 
-	s := grpc.NewServer(grpc.UnaryInterceptor(loggingInterceptor))
+	s := grpc.NewServer()
+	printHeader, exists := os.LookupEnv("GRPC_PRINT_REQUEST_HEADER")
+	printHeaderBool, err := strconv.ParseBool(printHeader)
+	if err != nil {
+		// revert to default
+		printHeaderBool = false
+	}
+
+	if exists && printHeaderBool {
+		fmt.Println("GRPC_PRINT_REQUEST_HEADER has been activated")
+		s = grpc.NewServer(grpc.UnaryInterceptor(loggingInterceptor))
+	}
+
 	RegisterGreeterServer(s, &greeterServer{hostname: hostname})
 
 	hs := health.NewServer()
